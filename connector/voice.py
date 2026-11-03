@@ -1,7 +1,6 @@
 """Voice engines run on provider host. No automatic API fallback."""
 
 import json
-import os
 import threading
 import time
 from urllib.request import Request, urlopen
@@ -38,18 +37,16 @@ def api_request(offer, config):
 
 
 def get_key():
+    # Fail closed: never bypass Hermes's active-profile secret scope.
     try:
         from agent.secret_scope import get_secret
-
-        return (
-            get_secret("HERMES_CONSULT_OPENAI_API_KEY")
-            or get_secret("OPENAI_API_KEY")
-            or ""
-        )
     except ImportError:
-        return os.environ.get("HERMES_CONSULT_OPENAI_API_KEY") or os.environ.get(
-            "OPENAI_API_KEY", ""
-        )
+        raise VoiceServiceError("voice_unavailable") from None
+    return (
+        get_secret("HERMES_CONSULT_OPENAI_API_KEY")
+        or get_secret("OPENAI_API_KEY")
+        or ""
+    )
 
 
 class VoiceServiceError(RuntimeError):

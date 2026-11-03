@@ -50,7 +50,7 @@ hermes plugins list
 hermes plugins doctor ~/.hermes/plugins/hermes-consult --ci
 ```
 
-In Desktop, open **Capabilities → Plugins**, rescan, and enable the Desktop half of **Hermes Consult**. Open **Settings → Plugins → Website consultation**. If upgrading an already-loaded Python backend, restart the gateway after active work finishes.
+In Desktop, open **Capabilities → Plugins**, rescan, and enable the Desktop half of **Hermes Consult**. Open **Settings → Plugins → hermes-consult**. If upgrading an already-loaded Python backend, restart the gateway after active work finishes.
 
 ## Quick start
 
@@ -103,6 +103,26 @@ Visitor storage can be cleared and network addresses can change, so per-visitor 
 - Single Node process + SQLite. Multi-replica deployment, PDF parsing, vector search, human call transfer, payment/refund actions and email notifications are not included.
 - The subscription voice/document-answer flow has been exercised end to end. Official API voice still needs a successful funded-account E2E check. Public HTTPS deployment and load testing have not been completed.
 - Hermes model integration currently depends on internal Python APIs and must be rechecked after Hermes upgrades.
+
+## Execution and network disclosure
+
+- Enabling the plugin registers a `consult` CLI command and a Desktop settings page. It does not register agent tools, hooks or middleware, modify Hermes core, or update its own code.
+- Starting the server launches the bundled JavaScript with the host's Node executable and keeps connector threads running until stopped. Each document answer launches a bounded Python worker using the installed Hermes interpreter; commands use argument arrays, not a shell. Tools are disabled and inherited `HERMES_YOLO_MODE` is removed from that worker.
+- Outside this repository, it reads the active Hermes profile's model settings through Hermes, discovers the Hermes installation/interpreter, and loads the installed Hermes Live consultation module when subscription voice is enabled. The subscription broker launches the installed Codex app-server and queries its account/effective configuration. Codex manages its own login; this plugin does not read credential files.
+- Website requests reach your consultation origin. Audio/voice signaling reaches OpenAI; document questions and published context reach the configured Hermes model provider. Optional Turnstile loads Cloudflare resources in the visitor iframe and sends verification tokens to `challenges.cloudflare.com`. There is no analytics or telemetry collection.
+- Profile data lives under `<HERMES_HOME>/consult/`: `consult.sqlite` (business data, inquiries, usage) and `settings.json` (non-secret server settings). API keys are resolved only with Hermes's profile-scoped `get_secret`; the Node child receives the optional Turnstile secret in its process environment. The public widget never receives these secrets. Local control tokens are generated in memory.
+
+## Catalog status
+
+This is a community plugin distributed directly from GitHub, **not an approved Hermes catalog entry**. See the [official admission rules](https://github.com/NousResearch/hermes-agent/blob/main/plugin-catalog/README.md).
+
+The existing optional subscription lane uses Codex app-server (directly or through Hermes Live), rather than Hermes's `credentialed_provider_request`. It therefore does **not currently satisfy rule 11**. Keeping that feature disabled does not remove its code from a reviewed commit. Catalog submission requires migrating the full subscription integration to a supported Hermes credential route, or publishing a separately reviewed API-only distribution. No supported equivalent for the existing app-server realtime/handoff lifecycle has been validated here; adding `requires_auth` alone would not fix this.
+
+Document answers also use the internal `AIAgent` and runtime-provider APIs. Validation warnings must be disclosed and a documented isolated-inference surface should replace these imports before claiming public-surface-only integration. A passing validator is not catalog approval. UI submissions additionally need screenshots and a catalog entry pinned to a full 40-character release commit, reviewed by a Nous maintainer.
+
+## Dependency policy
+
+Python dependencies have both a compatible lower bound and an upper bound and must resolve within Hermes core constraints. JavaScript dependencies are fixed by `package-lock.json`; CI uses `npm ci` and verifies reproducible readable bundles. Review upstream changes before updating either set. There is currently no automated dependency-age quarantine. No native executable, bytecode or opaque archive is shipped.
 
 ## Build
 

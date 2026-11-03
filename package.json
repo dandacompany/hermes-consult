@@ -1,6 +1,6 @@
 {
   "name": "hermes-consult",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "node --experimental-strip-types src/index.ts",
     "start": "node --experimental-strip-types src/index.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/build.mjs",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm test && python3 -m unittest discover -s tests -p 'test_*.py'",
+    "build": "node scripts/build.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

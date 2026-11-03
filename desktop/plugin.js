@@ -291,8 +291,8 @@ function Choice({
 }
 var source_default = {
   id: "hermes-consult",
-  name: "Hermes Consult",
-  version: "0.2.0",
+  name: "hermes-consult",
+  version: "0.2.1",
   description: "Website voice consultations",
   defaultEnabled: false,
   register(ctx) {

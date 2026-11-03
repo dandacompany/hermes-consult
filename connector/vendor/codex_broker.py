@@ -30,7 +30,7 @@ def binary():
 def child_env():
     env = os.environ.copy()
     for key in tuple(env):
-        if not (key in {'OPENAI_BASE_URL', 'BWS_ACCESS_TOKEN'} or key.endswith(('_API_KEY', '_API_KEY_FOR_LIVE'))):
+        if not (key in {'OPENAI_BASE_URL', 'BWS_ACCESS_TOKEN', 'HERMES_YOLO_MODE'} or key.endswith(('_API_KEY', '_API_KEY_FOR_LIVE'))):
             continue
         env.pop(key, None)
     return env

@@ -148,6 +148,7 @@ class HermesRuntime:
         # Never pass the relay's one-time pairing code to agent subprocesses.
         env.pop("CONSULT_PAIR_CODE", None)
         env.pop("BWS_ACCESS_TOKEN", None)
+        env.pop("HERMES_YOLO_MODE", None)
         result = subprocess.run(
             [self.python, str(Path(__file__).resolve()), "--worker"],
             input=json.dumps(body),

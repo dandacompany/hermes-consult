@@ -50,7 +50,7 @@ hermes plugins list
 hermes plugins doctor ~/.hermes/plugins/hermes-consult --ci
 ```
 
-Desktop의 **기능 → 플러그인**에서 다시 검색하고 Hermes Consult의 Desktop 기능도 켜세요. **설정 → 플러그인 → 홈페이지 상담봇**에서 설정합니다. 이미 로드된 Python 백엔드를 업데이트했다면 진행 중인 작업을 마친 뒤 게이트웨이를 재시작하세요.
+Desktop의 **기능 → 플러그인**에서 다시 검색하고 Hermes Consult의 Desktop 기능도 켜세요. **설정 → 플러그인 → hermes-consult**에서 설정합니다. 이미 로드된 Python 백엔드를 업데이트했다면 진행 중인 작업을 마친 뒤 게이트웨이를 재시작하세요.
 
 ## 홈페이지에 연결하기
 
@@ -122,3 +122,23 @@ npm run build
 
 ---
 [Dante Labs](https://dante-labs.com) · [YouTube](https://youtube.com/@dante-labs) · [Email](mailto:dante@dante-labs.com) · [Discord](https://discord.com/invite/rXyy5e9ujs) · [후원](https://buymeacoffee.com/dante.labs)
+
+## 실행·외부 통신 안내
+
+- 활성화 시 `consult` CLI 명령과 Desktop 설정 페이지를 등록합니다. 에이전트 도구·훅·미들웨어, 코어 수정, 자체 업데이트는 없습니다.
+- 서버 시작 시 Node 프로세스와 커넥터 스레드가 실행됩니다. 자료 답변마다 설치된 Hermes Python으로 제한시간이 있는 작업 프로세스를 실행합니다. 셸 문자열은 실행하지 않고 인자 배열을 사용하며, 답변 작업에는 도구를 제공하지 않고 상속된 `HERMES_YOLO_MODE`를 제거합니다.
+- 외부 파일 접근은 Hermes 프로필의 모델 설정, 설치·인터프리터 탐색, 선택한 Hermes Live 연동 모듈을 포함합니다. 구독 음성은 Codex 앱 서버를 실행하고 계정·유효 설정을 조회합니다. 로그인은 Codex가 관리하며 이 플러그인이 인증 파일을 직접 읽지는 않습니다.
+- 음성·연결 신호는 OpenAI로, 질문·게시 자료는 설정한 Hermes 모델 제공자로 전송됩니다. 선택 기능인 Turnstile은 Cloudflare 리소스를 로드하고 `challenges.cloudflare.com`에 검증 토큰을 보냅니다. 분석·텔레메트리는 수집하지 않습니다.
+- `<HERMES_HOME>/consult/`의 `consult.sqlite`에 자료·문의·사용량, `settings.json`에 비밀이 아닌 서버 설정을 저장합니다. 키는 Hermes의 프로필별 `get_secret`으로만 조회합니다. Node 자식 프로세스에는 선택한 Turnstile 비밀키가 환경변수로 전달되며 공개 위젯에는 전달되지 않습니다. 로컬 제어 토큰은 메모리에만 있습니다.
+
+## 공식 카탈로그 등록 상태
+
+현재는 GitHub에서 직접 설치하는 커뮤니티 플러그인이며 **공식 카탈로그 승인 상태가 아닙니다**. [등록 규정](https://github.com/NousResearch/hermes-agent/blob/main/plugin-catalog/README.md)을 기준으로 다음 사항이 남아 있습니다.
+
+- 구독 음성의 Codex 앱 서버 경로는 `credentialed_provider_request`를 사용하는 방식이 아니므로 규정 11번을 충족하지 않습니다. 기능을 꺼도 심사 대상 코드에서 사라지지는 않습니다. 전체 구독 연동을 Hermes 공식 인증 경로로 바꾸거나 별도 API 전용 배포본을 검토해야 합니다. 기존 실시간 음성·위임 수명주기를 대체할 공식 경로는 아직 검증하지 않았으며 `requires_auth` 선언만 추가해서 해결할 수 없습니다.
+- 자료 답변의 `AIAgent`·runtime-provider는 내부 API입니다. 검증 경고를 공개하고 공식적으로 문서화된 격리 추론 API로 교체할 필요가 있습니다.
+- 검증 통과가 등록 승인은 아닙니다. UI 스크린샷과 전체 40자리 커밋 SHA를 고정한 카탈로그 항목을 준비하고 Nous 관리자의 PR 검토를 받아야 합니다.
+
+## 의존성 정책
+
+Python 의존성에는 호환 하한·상한을 두고 Hermes 코어 제약 안에서 검증합니다. JavaScript는 lockfile과 CI의 `npm ci`를 사용하고 읽을 수 있는 번들의 재현성을 확인합니다. 업데이트 시 원본 변경을 검토하며 자동 배포 연령 격리는 아직 없습니다. 네이티브 실행파일·바이트코드·불투명한 압축파일은 배포하지 않습니다.
