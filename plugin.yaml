@@ -1,0 +1,16 @@
+name: hermes-consult
+version: 0.2.0
+description: Desktop consultation settings, embedded server and isolated website voice consultations.
+author: Dante Labs
+requires_hermes: '>=0.22.5'
+python_dependencies:
+  - websocket-client>=1.8,<2
+config_schema:
+  openai_api_key:
+    type: secret
+    env: HERMES_CONSULT_OPENAI_API_KEY
+    description: Optional OpenAI project key for the API voice lane. Not used for subscription voice.
+  turnstile_secret:
+    type: secret
+    env: HERMES_CONSULT_TURNSTILE_SECRET
+    description: Optional Cloudflare Turnstile secret. Required when a bot site key is configured. Restart the consultation server after changing it.
