@@ -8,6 +8,14 @@ Hermes Consult adds a settings panel and a self-hosted consultation server to He
 
 The Desktop panel follows Hermes settings components and switches between English and Korean with the app language. The current visitor widget and voice prompt are Korean-first.
 
+## Screenshots
+
+The native Desktop panel supports English and Korean. The Korean assistant name and greeting below are editable sample content.
+
+![Assistant settings: name, welcome message and voice engine](./assets/desktop-assistant.png)
+
+![Usage protection: duration, concurrency, daily allowance and visitor limits](./assets/desktop-safety.png)
+
 ## Requirements
 
 - Hermes Agent and Desktop **0.22.5 or later**, with the plugin enabled on the serving profile.
@@ -57,7 +65,7 @@ In Desktop, open **Capabilities → Plugins**, rescan, and enable the Desktop ha
 1. In **Connection**, set the public HTTPS origin and local port. Enable subscription voice if using Hermes Live. Start the server.
 2. Create an assistant. Choose the voice engine, add consultation knowledge and answer rules, and configure usage limits.
 3. In **Website**, register each allowed website origin, including `www` separately. Save and publish.
-4. Copy the generated script tag into the website's shared HTML before `</body>`.
+4. In **Website**, click **Copy snippet**. Send the complete code to your website administrator, or paste it into your website's shared HTML before `</body>`.
 5. On the website, open the floating button, start voice and allow microphone access.
 
 ```html
@@ -67,6 +75,14 @@ In Desktop, open **Capabilities → Plugins**, rescan, and enable the Desktop ha
 The embed code contains only a public origin and public site ID. API keys, OAuth credentials and the private Hermes host address are not included. The public consultation origin and WebRTC peer information remain visible in browser developer tools.
 
 Keep Hermes and its host running. Server settings and assistant data persist; starting the server reconnects published assistants automatically. The internal connector is managed by the plugin—there is no separate pairing step in Desktop mode. Server start is explicit, not an unattended boot service.
+
+### Deliver and maintain the snippet
+
+- Use the code generated for the selected assistant; the example above contains placeholders. The website administrator needs only this code, not access to Hermes or your keys.
+- For a CMS or website builder, use its site-wide custom HTML/footer-code field that permits scripts. A normal text block may display the code instead of running it. Visitors do not install a Hermes plugin.
+- Register the exact website origin, such as `https://www.example.com`, in **Website**. Include `https://example.com` separately if both are used. The consultation server needs a public HTTPS address reachable from visitors' browsers; `localhost` is only for local testing.
+- Updating knowledge, rules or limits requires **Save & publish**, not replacing the snippet. Replace the snippet if the consultation origin or site ID changes. Reusing the same assistant on several allowed domains shares its site-wide usage allowance.
+- After installation, check the floating button, microphone permission, one question grounded in your documents, and an inquiry submission. Check inquiries and usage in **Activity**. If the button is missing, check whether the page loaded `widget.js`; if calls fail, check the server status, allowed origin, limits and browser microphone/CSP permissions.
 
 ## Configuration
 
@@ -120,7 +136,7 @@ The optional subscription lane uses the user's installed Codex CLI and its own l
 
 Document answers instantiate `AIAgent` in a bounded child process and resolve the configured model with the runtime-provider API. These are internal imports, so the validator emits compatibility warnings; they are not runtime replacements or patches to Hermes core. We retain the tool-free consultation boundary, disclose the warnings for review, and will prefer a documented equivalent when available. No Hermes core edit or monkey-patch is required.
 
-A passing validator is not catalog approval. Hermes Consult still needs its own pinned-commit review, UI screenshots and a catalog entry with a full 40-character release SHA. The existing Hermes Live feedback is supporting evidence for the transport choice, not a blanket exemption from catalog rules.
+A passing validator is not catalog approval. [Catalog PR #148521](https://github.com/NousResearch/hermes-agent/pull/148521) includes UI screenshots and a catalog entry with a full 40-character release SHA; submission is not approval. The existing Hermes Live feedback is supporting evidence for the transport choice, not a blanket exemption from catalog rules.
 
 ## Dependency policy
 
