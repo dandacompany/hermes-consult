@@ -920,7 +920,7 @@ var source_default = {
     }
     const registerPage = () => ctx.registerSettingsPage({
       id: "settings",
-      title: ctx.i18n.t("title"),
+      title: "hermes-consult",
       icon: "comment-discussion",
       render: () => /* @__PURE__ */ jsx(Panel, {})
     });
