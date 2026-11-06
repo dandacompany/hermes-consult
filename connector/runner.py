@@ -141,8 +141,6 @@ class Connector:
 
 def configure(parser):
     parser.add_argument("--relay", default="http://127.0.0.1:4317")
-    parser.add_argument("--hermes-root")
-    parser.add_argument("--hermes-python")
     parser.add_argument(
         "--allow-subscription",
         action="store_true",
@@ -160,10 +158,10 @@ def main(args=None):
         parser = argparse.ArgumentParser()
         configure(parser)
         args = parser.parse_args()
-    runtime = HermesRuntime(args.hermes_root, args.hermes_python, args.demo)
+    runtime = HermesRuntime(demo=args.demo)
     if not runtime.available():
         raise SystemExit(
-            "Hermes installation not found. Set --hermes-root and --hermes-python."
+            "Hermes plugin LLM access is unavailable. Run this as `hermes consult` with the plugin enabled."
         )
     connector = Connector(args.relay, runtime, args.allow_subscription)
     code = os.environ.pop("CONSULT_PAIR_CODE", None) or getpass.getpass(

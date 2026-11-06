@@ -36,6 +36,7 @@ type Config = {
   greeting: string;
   origins: string[];
   engine: string;
+  language: string;
   rules: string;
   knowledge: string;
   maxSeconds: number;
@@ -84,6 +85,7 @@ const defaults = (t: Translate): Config => ({
   greeting: t("defaultGreeting"),
   origins: [],
   engine: "subscription",
+  language: "auto",
   rules: t("defaultRules"),
   knowledge: "",
   maxSeconds: 180,
@@ -93,6 +95,17 @@ const defaults = (t: Translate): Config => ({
   cooldownSeconds: 60,
   enabled: true,
 });
+// Endonyms need no translation; "auto" follows the embedding page's <html lang>.
+const languages = [
+  ["en", "English"],
+  ["ko", "한국어"],
+  ["ja", "日本語"],
+  ["zh", "中文"],
+  ["es", "Español"],
+  ["fr", "Français"],
+  ["de", "Deutsch"],
+  ["pt", "Português"],
+] as const;
 const muted: React.CSSProperties = {
   color: "var(--ui-text-tertiary)",
   fontSize: "var(--conversation-caption-font-size)",
@@ -132,7 +145,7 @@ function Choice({
 export default {
   id: "hermes-consult",
   name: "hermes-consult",
-  version: "0.2.1",
+  version: "0.2.2",
   description: "Website voice consultations",
   defaultEnabled: false,
   register(ctx: PluginContext) {
@@ -531,6 +544,23 @@ export default {
                             ]}
                             onChange={(engine) =>
                               setDraft({ ...draft, engine })
+                            }
+                          />
+                        }
+                      />
+                      <ListRow
+                        title={t("language")}
+                        description={t("languageHelp")}
+                        action={
+                          <Choice
+                            label={t("language")}
+                            value={draft.language}
+                            options={[
+                              { id: "auto", label: t("languageAuto") },
+                              ...languages.map(([id, label]) => ({ id, label })),
+                            ]}
+                            onChange={(language) =>
+                              setDraft({ ...draft, language })
                             }
                           />
                         }

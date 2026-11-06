@@ -110,6 +110,21 @@ export const en = {
   errLive: "Install the Hermes Live version that supports consultation voice.",
   errLimit: "A usage limit was reached. Wait before trying again.",
   errFile: "Choose a TXT or Markdown file with at most 40,000 characters.",
+  errOrigin: "Enter a public HTTPS origin without a path.",
+  errStart:
+    "The consultation server did not start. Check the Node.js version and installation.",
+  errNotRunning: "Start the consultation server first.",
+  errNotFound: "The assistant was not found. Refresh and try again.",
+  errConflict:
+    "The request conflicts with the current state, such as the assistant limit. Refresh and try again.",
+  errLlm:
+    "Hermes plugin LLM access is unavailable. Enable the plugin and restart Hermes.",
+  errLiveVersion:
+    "This Hermes Live version uses an unsupported consultation API. Update Hermes Live.",
+  language: "Answer language",
+  languageHelp:
+    "Language for written and spoken answers. Automatic uses the website page’s language; visitors who use another language are answered in theirs.",
+  languageAuto: "Automatic (page language)",
   defaultName: "Website assistant",
   defaultGreeting: "Hello. I’m your AI assistant. How can I help?",
   defaultRules:
@@ -232,6 +247,21 @@ export const ko: Record<Key, string> = {
   errLive: "상담 음성 연동을 지원하는 Hermes Live 버전을 설치하세요.",
   errLimit: "사용량 한도에 도달했습니다. 잠시 후 다시 시도하세요.",
   errFile: "최대 40,000자의 TXT 또는 Markdown 파일을 선택하세요.",
+  errOrigin: "경로 없는 공개 HTTPS 주소를 입력하세요.",
+  errStart:
+    "상담 서버를 시작하지 못했습니다. Node.js 버전과 설치 상태를 확인하세요.",
+  errNotRunning: "상담 서버를 먼저 시작하세요.",
+  errNotFound: "상담봇을 찾을 수 없습니다. 새로 고친 뒤 다시 시도하세요.",
+  errConflict:
+    "상담봇 개수 한도 등 현재 상태와 충돌하는 요청입니다. 새로 고친 뒤 다시 시도하세요.",
+  errLlm:
+    "Hermes 플러그인 LLM 연결을 사용할 수 없습니다. 플러그인을 활성화하고 Hermes를 다시 시작하세요.",
+  errLiveVersion:
+    "이 Hermes Live 버전의 상담 API는 지원되지 않습니다. Hermes Live를 업데이트하세요.",
+  language: "답변 언어",
+  languageHelp:
+    "글과 음성 답변의 언어입니다. 자동은 홈페이지 페이지 언어를 따르며, 다른 언어를 쓰는 방문자에게는 그 언어로 답합니다.",
+  languageAuto: "자동 (페이지 언어)",
   defaultName: "홈페이지 상담원",
   defaultGreeting: "안녕하세요. AI 상담원입니다. 무엇을 도와드릴까요?",
   defaultRules:
@@ -254,14 +284,10 @@ export function format(locale: string, key: Key, ...values: unknown[]) {
   return interpolate((locale.startsWith("ko") ? ko : en)[key], ...values);
 }
 export function errorKey(error: unknown): Key {
+  // The backend prefixes English details with a locale key: "HC:<key> <English message>".
   const message = error instanceof Error ? error.message : String(error);
-  if (message.startsWith("HC:"))
-    return message.slice(3) in en ? (message.slice(3) as Key) : "errGeneric";
-  if (/이미 사용 중인 포트/.test(message)) return "errPort";
-  if (/Node.js|빌드된 플러그인/.test(message)) return "errRuntime";
-  if (/Hermes Live/.test(message)) return "errLive";
-  if (/400|입력값|HTTPS 주소/.test(message)) return "errInput";
-  if (/429/.test(message)) return "errLimit";
+  const key = /(?:^|[^A-Za-z])HC:([A-Za-z]+)/.exec(message)?.[1];
+  if (key) return key in en ? (key as Key) : "errGeneric";
   if (/404|503|fetch|backend|ECONN/i.test(message)) return "errBackend";
   return "errGeneric";
 }

@@ -3,8 +3,14 @@
 import sys
 from pathlib import Path
 
+# Set by register(): the plugin context whose ``ctx.llm`` facade answers consultations.
+# Resolved lazily — probe/validation contexts do not provide ``llm``.
+_hermes_consult_ctx = None
+
 
 def register(ctx):
+    global _hermes_consult_ctx
+    _hermes_consult_ctx = ctx
     root = str(Path(__file__).resolve().parent)
     if root not in sys.path:
         sys.path.insert(0, root)
@@ -18,6 +24,8 @@ def register(ctx):
     )
 
     def shutdown():
+        global _hermes_consult_ctx
+        _hermes_consult_ctx = None
         target = Path(root) / "dashboard" / "plugin_api.py"
         for module in list(sys.modules.values()):
             source = getattr(module, "__file__", None)

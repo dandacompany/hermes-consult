@@ -87,7 +87,7 @@
         const r = await fetch(service + "/public/sites/" + site + "/sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ challengeToken: data.challengeToken, visitorId: (() => {
+          body: JSON.stringify({ challengeToken: data.challengeToken, pageLanguage: document.documentElement.lang || navigator.language || "", visitorId: (() => {
             try { const key = "hc-visitor-" + site; let id = localStorage.getItem(key);
               if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); } return id;
             } catch { return "anonymous"; }

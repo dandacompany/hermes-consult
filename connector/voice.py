@@ -7,16 +7,20 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from urllib.parse import quote
 from uuid import uuid4
+from .runtime import language_instruction
 from .vendor import codex_broker
 
 
 def voice_prompt(config):
+    greeting = str(config.get("greeting") or "").strip()
     return (
-        "You are " + str(config.get("name", "AI 상담원")) + ". Speak concise Korean. "
+        "You are " + (str(config.get("name") or "").strip() or "an AI consultation assistant") + ". "
+        + language_instruction(config)
+        + " Speak concisely. "
         "You are an AI business consultation assistant. The visitor is already on this business website. "
-        "Assume questions refer to this business; do not ask which company. Greet the visitor: "
-        + str(config.get("greeting", "안녕하세요. 무엇을 도와드릴까요?"))
-        + ". Delegate ALL business-specific facts, policies and service questions to the client backend before answering. "
+        "Assume questions refer to this business; do not ask which company. "
+        + ("Greet the visitor with: " + greeting + ". " if greeting else "Greet the visitor briefly. ")
+        + "Delegate ALL business-specific facts, policies and service questions to the client backend before answering. "
         "The backend can only answer from published consultation documents; it cannot execute actions. "
         "Never claim access to private files, purchases, calendars or tools. Never invent business facts. "
         "If information is unavailable, suggest the contact form. Never claim a form was submitted. "
@@ -82,7 +86,7 @@ class LiveAPI:
 
         key = get_key()
         if not key:
-            raise RuntimeError("OpenAI API 키가 설정되지 않았습니다.")
+            raise RuntimeError("OpenAI API key is not configured.")
         request = Request(
             "https://api.openai.com/v1/live/sessions",
             data=json.dumps(
@@ -206,7 +210,7 @@ class LiveAPI:
                 {
                     "type": "session.thinking.append",
                     "delegation_id": ident,
-                    "content": "상담 자료를 확인하고 있습니다.",
+                    "content": "Checking the consultation documents.",
                 }
             )
             snapshot = self.transcript[-30:]
@@ -215,7 +219,7 @@ class LiveAPI:
                 self.local_id,
                 {
                     **self.payload,
-                    "text": text or "방문자에게 질문을 다시 확인하세요.",
+                    "text": text or "Ask the visitor to repeat the question.",
                     "history": [],
                 },
             )["text"]
@@ -234,7 +238,7 @@ class LiveAPI:
                         {
                             "type": "session.commentary.append",
                             "delegation_id": ident,
-                            "content": "자료 조회에 실패했습니다. 문의 남기기를 안내하세요.",
+                            "content": "The document lookup failed. Suggest that the visitor leave an inquiry.",
                         }
                     )
                 except Exception:
@@ -302,7 +306,7 @@ class VoiceManager:
         try:
             if engine == "subscription":
                 if not self.allow_subscription:
-                    raise RuntimeError("구독 연결은 명시적으로 활성화해야 합니다.")
+                    raise RuntimeError("Subscription voice must be explicitly enabled.")
                 result = self.broker.sessions.start(
                     ident,
                     "cove",

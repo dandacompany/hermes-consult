@@ -30,10 +30,23 @@ const leadSchema = z.object({
   message: z.string().max(2000),
   consent: z.literal(true),
 });
+// BCP 47 language tag (simplified); "auto" follows the embedding page's <html lang>.
+const languageTag = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/;
+export function answerLanguage(setting: string, pageLanguage: unknown) {
+  if (setting !== "auto") return setting;
+  return typeof pageLanguage === "string" && languageTag.test(pageLanguage)
+    ? pageLanguage
+    : "";
+}
 const configSchema = z.object({
   name: z.string().trim().min(1).max(80),
   origins: z.array(originSchema).min(1).max(10),
   engine: z.enum(["api", "subscription"]),
+  language: z
+    .string()
+    .max(35)
+    .refine((v) => v === "auto" || languageTag.test(v))
+    .default("auto"),
   greeting: z.string().max(500),
   rules: z.string().max(6000),
   knowledge: z.string().max(40000),
@@ -692,7 +705,11 @@ export function createApp(options: {
       id,
       site: row.id,
       token: hash(token),
-      config,
+      // The connector sees the resolved language ("" → follow the visitor).
+      config: {
+        ...config,
+        language: answerLanguage(config.language, req.body?.pageLanguage),
+      },
       revision: row.revision,
       started: now,
       seen: now,

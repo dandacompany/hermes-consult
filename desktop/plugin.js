@@ -116,6 +116,16 @@ var en = {
   errLive: "Install the Hermes Live version that supports consultation voice.",
   errLimit: "A usage limit was reached. Wait before trying again.",
   errFile: "Choose a TXT or Markdown file with at most 40,000 characters.",
+  errOrigin: "Enter a public HTTPS origin without a path.",
+  errStart: "The consultation server did not start. Check the Node.js version and installation.",
+  errNotRunning: "Start the consultation server first.",
+  errNotFound: "The assistant was not found. Refresh and try again.",
+  errConflict: "The request conflicts with the current state, such as the assistant limit. Refresh and try again.",
+  errLlm: "Hermes plugin LLM access is unavailable. Enable the plugin and restart Hermes.",
+  errLiveVersion: "This Hermes Live version uses an unsupported consultation API. Update Hermes Live.",
+  language: "Answer language",
+  languageHelp: "Language for written and spoken answers. Automatic uses the website page\u2019s language; visitors who use another language are answered in theirs.",
+  languageAuto: "Automatic (page language)",
   defaultName: "Website assistant",
   defaultGreeting: "Hello. I\u2019m your AI assistant. How can I help?",
   defaultRules: "Answer from the published documents. If you do not know, offer to take an inquiry. Do not confirm payments, refunds or reservations.",
@@ -216,6 +226,16 @@ var ko = {
   errLive: "\uC0C1\uB2F4 \uC74C\uC131 \uC5F0\uB3D9\uC744 \uC9C0\uC6D0\uD558\uB294 Hermes Live \uBC84\uC804\uC744 \uC124\uCE58\uD558\uC138\uC694.",
   errLimit: "\uC0AC\uC6A9\uB7C9 \uD55C\uB3C4\uC5D0 \uB3C4\uB2EC\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
   errFile: "\uCD5C\uB300 40,000\uC790\uC758 TXT \uB610\uB294 Markdown \uD30C\uC77C\uC744 \uC120\uD0DD\uD558\uC138\uC694.",
+  errOrigin: "\uACBD\uB85C \uC5C6\uB294 \uACF5\uAC1C HTTPS \uC8FC\uC18C\uB97C \uC785\uB825\uD558\uC138\uC694.",
+  errStart: "\uC0C1\uB2F4 \uC11C\uBC84\uB97C \uC2DC\uC791\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. Node.js \uBC84\uC804\uACFC \uC124\uCE58 \uC0C1\uD0DC\uB97C \uD655\uC778\uD558\uC138\uC694.",
+  errNotRunning: "\uC0C1\uB2F4 \uC11C\uBC84\uB97C \uBA3C\uC800 \uC2DC\uC791\uD558\uC138\uC694.",
+  errNotFound: "\uC0C1\uB2F4\uBD07\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uC0C8\uB85C \uACE0\uCE5C \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  errConflict: "\uC0C1\uB2F4\uBD07 \uAC1C\uC218 \uD55C\uB3C4 \uB4F1 \uD604\uC7AC \uC0C1\uD0DC\uC640 \uCDA9\uB3CC\uD558\uB294 \uC694\uCCAD\uC785\uB2C8\uB2E4. \uC0C8\uB85C \uACE0\uCE5C \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  errLlm: "Hermes \uD50C\uB7EC\uADF8\uC778 LLM \uC5F0\uACB0\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uD50C\uB7EC\uADF8\uC778\uC744 \uD65C\uC131\uD654\uD558\uACE0 Hermes\uB97C \uB2E4\uC2DC \uC2DC\uC791\uD558\uC138\uC694.",
+  errLiveVersion: "\uC774 Hermes Live \uBC84\uC804\uC758 \uC0C1\uB2F4 API\uB294 \uC9C0\uC6D0\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. Hermes Live\uB97C \uC5C5\uB370\uC774\uD2B8\uD558\uC138\uC694.",
+  language: "\uB2F5\uBCC0 \uC5B8\uC5B4",
+  languageHelp: "\uAE00\uACFC \uC74C\uC131 \uB2F5\uBCC0\uC758 \uC5B8\uC5B4\uC785\uB2C8\uB2E4. \uC790\uB3D9\uC740 \uD648\uD398\uC774\uC9C0 \uD398\uC774\uC9C0 \uC5B8\uC5B4\uB97C \uB530\uB974\uBA70, \uB2E4\uB978 \uC5B8\uC5B4\uB97C \uC4F0\uB294 \uBC29\uBB38\uC790\uC5D0\uAC8C\uB294 \uADF8 \uC5B8\uC5B4\uB85C \uB2F5\uD569\uB2C8\uB2E4.",
+  languageAuto: "\uC790\uB3D9 (\uD398\uC774\uC9C0 \uC5B8\uC5B4)",
   defaultName: "\uD648\uD398\uC774\uC9C0 \uC0C1\uB2F4\uC6D0",
   defaultGreeting: "\uC548\uB155\uD558\uC138\uC694. AI \uC0C1\uB2F4\uC6D0\uC785\uB2C8\uB2E4. \uBB34\uC5C7\uC744 \uB3C4\uC640\uB4DC\uB9B4\uAE4C\uC694?",
   defaultRules: "\uAC8C\uC2DC\uB41C \uC790\uB8CC\uC5D0 \uADFC\uAC70\uD574 \uB2F5\uD558\uC138\uC694. \uBAA8\uB974\uBA74 \uBB38\uC758 \uC811\uC218\uB97C \uC548\uB0B4\uD558\uC138\uC694. \uACB0\uC81C\xB7\uD658\uBD88\xB7\uC608\uC57D\uC744 \uD655\uC815\uD558\uC9C0 \uB9C8\uC138\uC694.",
@@ -233,13 +253,8 @@ function interpolate(message, ...values) {
 }
 function errorKey(error) {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.startsWith("HC:"))
-    return message.slice(3) in en ? message.slice(3) : "errGeneric";
-  if (/이미 사용 중인 포트/.test(message)) return "errPort";
-  if (/Node.js|빌드된 플러그인/.test(message)) return "errRuntime";
-  if (/Hermes Live/.test(message)) return "errLive";
-  if (/400|입력값|HTTPS 주소/.test(message)) return "errInput";
-  if (/429/.test(message)) return "errLimit";
+  const key = /(?:^|[^A-Za-z])HC:([A-Za-z]+)/.exec(message)?.[1];
+  if (key) return key in en ? key : "errGeneric";
   if (/404|503|fetch|backend|ECONN/i.test(message)) return "errBackend";
   return "errGeneric";
 }
@@ -260,6 +275,7 @@ var defaults = (t) => ({
   greeting: t("defaultGreeting"),
   origins: [],
   engine: "subscription",
+  language: "auto",
   rules: t("defaultRules"),
   knowledge: "",
   maxSeconds: 180,
@@ -269,6 +285,16 @@ var defaults = (t) => ({
   cooldownSeconds: 60,
   enabled: true
 });
+var languages = [
+  ["en", "English"],
+  ["ko", "\uD55C\uAD6D\uC5B4"],
+  ["ja", "\u65E5\u672C\u8A9E"],
+  ["zh", "\u4E2D\u6587"],
+  ["es", "Espa\xF1ol"],
+  ["fr", "Fran\xE7ais"],
+  ["de", "Deutsch"],
+  ["pt", "Portugu\xEAs"]
+];
 var muted = {
   color: "var(--ui-text-tertiary)",
   fontSize: "var(--conversation-caption-font-size)",
@@ -292,7 +318,7 @@ function Choice({
 var source_default = {
   id: "hermes-consult",
   name: "hermes-consult",
-  version: "0.2.1",
+  version: "0.2.2",
   description: "Website voice consultations",
   defaultEnabled: false,
   register(ctx) {
@@ -669,6 +695,25 @@ var source_default = {
                                 { id: "api", label: t("api") }
                               ],
                               onChange: (engine) => setDraft({ ...draft, engine })
+                            }
+                          )
+                        }
+                      ),
+                      /* @__PURE__ */ jsx(
+                        ListRow,
+                        {
+                          title: t("language"),
+                          description: t("languageHelp"),
+                          action: /* @__PURE__ */ jsx(
+                            Choice,
+                            {
+                              label: t("language"),
+                              value: draft.language,
+                              options: [
+                                { id: "auto", label: t("languageAuto") },
+                                ...languages.map(([id, label]) => ({ id, label }))
+                              ],
+                              onChange: (language) => setDraft({ ...draft, language })
                             }
                           )
                         }

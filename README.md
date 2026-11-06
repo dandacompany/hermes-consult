@@ -6,7 +6,7 @@
 
 Hermes Consult adds a settings panel and a self-hosted consultation server to Hermes. Configure business knowledge, answer rules, allowed websites and usage limits, then copy a script tag into your website. Visitors can speak to the assistant, type questions or leave an inquiry.
 
-The Desktop panel follows Hermes settings components and switches between English and Korean with the app language. The current visitor widget and voice prompt are Korean-first.
+The Desktop panel follows Hermes settings components and switches between English and Korean with the app language; backend errors reach it as locale keys with English text. Each assistant has an **Answer language** setting: the default, *Automatic*, answers in the embedding page's `<html lang>` (or the visitor's own language when it differs). The visitor widget's button and form labels are still Korean-first.
 
 ## Screenshots
 
@@ -118,13 +118,13 @@ Visitor storage can be cleared and network addresses can change, so per-visitor 
 - Audio and question text are not retained by the consultation server. Explicit inquiries and session usage are stored locally for 30 days; hashed visitor/IP counters for up to two days while the server is running. External model providers have their own data policies.
 - Single Node process + SQLite. Multi-replica deployment, PDF parsing, vector search, human call transfer, payment/refund actions and email notifications are not included.
 - The subscription voice/document-answer flow has been exercised end to end. Official API voice still needs a successful funded-account E2E check. Public HTTPS deployment and load testing have not been completed.
-- Hermes model integration currently depends on internal Python APIs and must be rechecked after Hermes upgrades.
+- Document answers use only the public plugin LLM facade (`ctx.llm.complete`); no private Hermes modules are imported.
 
 ## Execution and network disclosure
 
 - Enabling the plugin registers a `consult` CLI command and a Desktop settings page. It does not register agent tools, hooks or middleware, modify Hermes core, or update its own code.
-- Starting the server launches the bundled JavaScript with the host's Node executable and keeps connector threads running until stopped. Each document answer launches a bounded Python worker using the installed Hermes interpreter; commands use argument arrays, not a shell. Tools are disabled and inherited `HERMES_YOLO_MODE` is removed from that worker.
-- Outside this repository, it reads the active Hermes profile's model settings through Hermes, discovers the Hermes installation/interpreter, and loads the installed Hermes Live consultation module when subscription voice is enabled. The subscription broker launches the installed Codex app-server and queries its account/effective configuration. Codex manages its own login; this plugin does not read credential files.
+- Starting the server launches the bundled JavaScript with the host's Node executable and keeps connector threads running until stopped. Each document answer is one host-owned `ctx.llm.complete` call with a timeout and token cap; it carries no tools, memory or session, and no provider/model/profile override. Commands use argument arrays, not a shell. The Node child and the Codex app-server receive allowlisted environments (Codex: `PATH`, `HOME`, `USER`, locale `LANG`/`LC_*`, temp directories, `CODEX_HOME`/XDG directories, proxy and CA variables), never a copy of Hermes's environment, so bot tokens and other secrets Hermes loaded do not reach either binary.
+- Outside this repository, it uses the active profile's model through `ctx.llm` and, when subscription voice is enabled, loads the Hermes Live consultation module installed in the **same** profile only (never another profile's copy). The subscription broker launches the installed Codex app-server and queries its account/effective configuration. Codex manages its own login; this plugin does not read credential files.
 - Website requests reach your consultation origin. Audio/voice signaling reaches OpenAI; document questions and published context reach the configured Hermes model provider. Optional Turnstile loads Cloudflare resources in the visitor iframe and sends verification tokens to `challenges.cloudflare.com`. There is no analytics or telemetry collection.
 - Profile data lives under `<HERMES_HOME>/consult/`: `consult.sqlite` (business data, inquiries, usage) and `settings.json` (non-secret server settings). API keys are resolved only with Hermes's profile-scoped `get_secret`; the Node child receives the optional Turnstile secret in its process environment. The public widget never receives these secrets. Local control tokens are generated in memory.
 
@@ -134,7 +134,7 @@ This is a community plugin distributed directly from GitHub, **not an approved H
 
 The optional subscription lane uses the user's installed Codex CLI and its own login, directly or through Hermes Live. It does not read, copy or refresh credential files, and does not patch Hermes core. In the [Hermes Live catalog review](https://github.com/NousResearch/hermes-agent/pull/143585#issuecomment-6388816635), a Hermes maintainer explicitly accepted this CLI-owned login approach when reviewing Hermes Live at `ad9a770e`. We retain that architecture and disclose the external process instead of treating it as an established rule 11 violation. That review applies to the cited Hermes Live revision, not automatic approval of Hermes Consult or subsequent revisions.
 
-Document answers instantiate `AIAgent` in a bounded child process and resolve the configured model with the runtime-provider API. These are internal imports, so the validator emits compatibility warnings; they are not runtime replacements or patches to Hermes core. We retain the tool-free consultation boundary, disclose the warnings for review, and will prefer a documented equivalent when available. No Hermes core edit or monkey-patch is required.
+Document answers use the documented `ctx.llm.complete` facade with request-shaping arguments only, so Hermes owns routing, credentials and fallback. No internal Hermes module is imported, and no Hermes core edit or monkey-patch is required.
 
 A passing validator is not catalog approval. [Catalog PR #148521](https://github.com/NousResearch/hermes-agent/pull/148521) includes UI screenshots and a catalog entry with a full 40-character release SHA; submission is not approval. The existing Hermes Live feedback is supporting evidence for the transport choice, not a blanket exemption from catalog rules.
 

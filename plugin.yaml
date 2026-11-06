@@ -1,5 +1,5 @@
 name: hermes-consult
-version: 0.2.1
+version: 0.2.2
 description: Desktop consultation settings, embedded server and isolated website voice consultations.
 author: Dante Labs
 requires_hermes: '>=0.22.5'

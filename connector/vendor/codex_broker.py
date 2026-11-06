@@ -27,13 +27,25 @@ def binary():
     return shutil.which('codex') or next((str(p) for p in [Path('/opt/homebrew/bin/codex'), Path.home()/'.local/bin/codex', Path('/usr/local/bin/codex')] if p.is_file()), None)
 
 
-def child_env():
-    env = os.environ.copy()
-    for key in tuple(env):
-        if not (key in {'OPENAI_BASE_URL', 'BWS_ACCESS_TOKEN', 'HERMES_YOLO_MODE'} or key.endswith(('_API_KEY', '_API_KEY_FOR_LIVE'))):
-            continue
-        env.pop(key, None)
-    return env
+# The vendor CLI gets an allowlisted environment, never a copy of Hermes's process
+# environment: bot tokens, provider keys and other secrets Hermes loaded stay behind.
+ENV_ALLOW = frozenset({
+    'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LANGUAGE', 'TZ', 'TMPDIR', 'TMP', 'TEMP',
+    'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_RUNTIME_DIR',
+    'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+    'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
+    'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE', 'NODE_EXTRA_CA_CERTS',
+    'CODEX_CA_CERTIFICATE',
+    # Windows process basics.
+    'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'PATHEXT', 'USERPROFILE', 'APPDATA',
+    'LOCALAPPDATA', 'PROGRAMDATA', 'PROGRAMFILES', 'USERNAME', 'HOMEDRIVE', 'HOMEPATH',
+})
+
+
+def child_env(source=None):
+    source = os.environ if source is None else source
+    return {key: value for key, value in source.items()
+            if key in ENV_ALLOW or key.startswith('LC_')}
 
 
 class BrokerError(RuntimeError):
@@ -53,10 +65,10 @@ class AppServer:
     def start(self):
         executable = binary()
         if not executable:
-            raise BrokerError('백엔드에 Codex CLI를 설치하고 codex login으로 로그인하세요.')
+            raise BrokerError('Install the Codex CLI on the backend host and sign in with codex login.')
         with self.condition:
             if self.closed:
-                raise BrokerError('취소된 통화입니다.')
+                raise BrokerError('The call was cancelled.')
             self.workdir = tempfile.TemporaryDirectory(prefix='hermes-live-')
             self.proc = subprocess.Popen(
                 [executable, 'app-server', '--listen', 'stdio://', '--enable', 'realtime_conversation',
@@ -74,12 +86,12 @@ class AppServer:
     def send(self, value):
         with self.condition:
             if self.closed or not self.proc or self.proc.poll() is not None:
-                raise BrokerError('Codex 음성 연결이 종료되었습니다.')
+                raise BrokerError('The Codex voice connection has ended.')
             try:
                 self.proc.stdin.write(json.dumps(value)+'\n')
                 self.proc.stdin.flush()
             except (OSError, ValueError):
-                raise BrokerError('Codex 프로세스와 통신하지 못했습니다.') from None
+                raise BrokerError('Could not communicate with the Codex process.') from None
 
     def _read(self, proc):
         try:
@@ -117,14 +129,14 @@ class AppServer:
                 while self.pending[rid] is None and not self.closed:
                     remaining = until-time.monotonic()
                     if remaining <= 0:
-                        raise BrokerError('Codex 응답 대기 시간이 초과됐습니다.')
+                        raise BrokerError('Timed out waiting for Codex.')
                     self.condition.wait(remaining)
                 message = self.pending[rid]
                 if message is None:
-                    raise BrokerError('Codex 연결이 종료되었습니다.')
+                    raise BrokerError('The Codex connection has ended.')
                 if 'error' in message:
                     # Provider errors may contain credentials/context. Never expose raw text.
-                    raise BrokerError('Codex가 요청을 거절했습니다. CLI 버전·로그인·구독 사용 한도를 확인하세요.')
+                    raise BrokerError('Codex rejected the request. Check the CLI version, login and subscription limits.')
                 return message.get('result') or {}
             finally:
                 self.pending.pop(rid, None)
@@ -138,14 +150,14 @@ class AppServer:
                     if params.get('threadId') != thread:
                         continue
                     if message['method'] == 'thread/realtime/error':
-                        raise BrokerError('Codex Live 연결이 거절되었습니다. 구독 사용 한도와 계정 상태를 확인하세요.')
+                        raise BrokerError('Codex Live rejected the connection. Check subscription limits and account status.')
                     if message['method'] == 'thread/realtime/sdp' and params.get('sdp'):
                         return params['sdp']
                 remaining = until-time.monotonic()
                 if remaining <= 0:
                     break
                 self.condition.wait(remaining)
-        raise BrokerError('Codex Live 음성 연결을 완료하지 못했습니다.')
+        raise BrokerError('Could not complete the Codex Live voice connection.')
 
     def close(self):
         with self.condition:
@@ -171,7 +183,7 @@ class AppServer:
 def account_status(server):
     account = server.request('account/read', {'refreshToken':False}, 10).get('account') or {}
     if account.get('type') != 'chatgpt':
-        raise BrokerError('codex login으로 ChatGPT 구독 계정에 로그인하세요. API 키 로그인은 사용할 수 없습니다.')
+        raise BrokerError('Sign in to a ChatGPT subscription account with codex login. API-key login is not supported.')
     return {'available':True,'reason':None,'plan':str(account.get('planType') or '')}
 
 
@@ -211,9 +223,9 @@ class Sessions:
         self.reap()
         with self.lock:
             if call_id in self.cancelled or call_id in self.calls:
-                raise BrokerError('종료되었거나 중복된 통화입니다.')
+                raise BrokerError('The call has ended or is a duplicate.')
             if len(self.calls) >= 2:
-                raise BrokerError('진행 중인 Codex 통화를 먼저 종료하세요.')
+                raise BrokerError('End the active Codex call first.')
             server = self.factory()
             call = {'server':server, 'expires':self.clock()+100, 'thread':None}
             self.calls[call_id] = call
@@ -232,7 +244,7 @@ class Sessions:
                           'features':{'shell_tool':False,'multi_agent':False,'plugins':False,'apps':False,'hooks':False}}})
             thread_id = (thread.get('thread') or {}).get('id')
             if not thread_id:
-                raise BrokerError('Codex 음성 세션을 만들지 못했습니다.')
+                raise BrokerError('Could not create the Codex voice session.')
             call['thread'] = thread_id
             server.request('thread/realtime/start', {
                 'threadId':thread_id,'transport':{'type':'webrtc','sdp':offer},
@@ -242,7 +254,7 @@ class Sessions:
             answer = server.answer(thread_id)
             with self.lock:
                 if self.calls.get(call_id) is not call:
-                    raise BrokerError('취소된 통화입니다.')
+                    raise BrokerError('The call was cancelled.')
                 call['expires'] = self.clock()+45
             return {'answer':answer,'callId':call_id,'engine':'codex','handoff':'client'}
         except Exception:
@@ -254,7 +266,7 @@ class Sessions:
         with self.lock:
             call = self.calls.get(call_id)
             if not call or call['server'].closed:
-                raise BrokerError('Codex 통화가 종료되었습니다.')
+                raise BrokerError('The Codex call has ended.')
             call['expires'] = self.clock()+45
         return {'ok':True}
 

@@ -31,9 +31,27 @@ sys.modules[_namespace] = _package
 _spec.loader.exec_module(_package)
 Connector = importlib.import_module(_namespace + ".runner").Connector
 HermesRuntime = importlib.import_module(_namespace + ".runtime").HermesRuntime
-load_voice = importlib.import_module(_namespace + ".live_plugin").load_voice
+_live = importlib.import_module(_namespace + ".live_plugin")
+load_voice, LiveUnavailable = _live.load_voice, _live.LiveUnavailable
+host_llm = importlib.import_module(_namespace + ".runtime").host_llm
 
 router = APIRouter()
+
+
+def failure(status, key, message):
+    """English detail prefixed with a Desktop locale key (``HC:<key>``) the panel translates."""
+    return HTTPException(status, f"HC:{key} {message}")
+
+
+# Relay (Node) admin failures are reduced to status-based English messages; its text never surfaces.
+RELAY_ERRORS = {
+    400: ("errInput", "Check the highlighted values and try again."),
+    401: ("errBackend", "The consultation server rejected the Desktop session. Restart the server."),
+    403: ("errBackend", "The consultation server rejected the Desktop session. Restart the server."),
+    404: ("errNotFound", "The assistant was not found. Refresh and try again."),
+    409: ("errConflict", "The request conflicts with the current state, such as the assistant limit. Refresh and try again."),
+    429: ("errLimit", "A usage limit was reached. Wait before trying again."),
+}
 
 class Start(BaseModel):
     publicOrigin: str = Field(max_length=250)
@@ -72,9 +90,9 @@ class Service:
             with urlopen(request, timeout=10) as response:
                 return json.load(response)
         except HTTPError as error:
-            try: message = json.load(error).get("error", "요청 실패")
-            finally: error.close()
-            raise HTTPException(error.code, message) from None
+            error.close()
+            key, message = RELAY_ERRORS.get(error.code, ("errGeneric", "The consultation server could not complete the request."))
+            raise failure(error.code, key, message) from None
 
     def status(self):
         return {"running": self.process is not None and self.process.poll() is None,
@@ -87,14 +105,14 @@ class Service:
                 return self.status()
             parsed = urlparse(config.publicOrigin)
             if (parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost"))) or parsed.netloc == "" or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
-                raise HTTPException(400, "경로 없는 공개 HTTPS 주소를 입력하세요.")
+                raise failure(400, "errOrigin", "Enter a public HTTPS origin without a path.")
             node = shutil.which("node")
             if not node or not (ROOT / "dist/server.mjs").exists():
-                raise HTTPException(503, "Node.js 24 이상과 빌드된 플러그인이 필요합니다. 개발 설치는 npm ci 후 npm run build를 실행하세요.")
+                raise failure(503, "errRuntime", "Node.js 24 or later and a built plugin are required. For development installs run npm ci, then npm run build.")
             # Never adopt an unrelated listener or send its process our private admin token.
             with socket.socket() as probe:
                 try: probe.bind(("127.0.0.1", config.port))
-                except OSError: raise HTTPException(409, "이미 사용 중인 포트입니다. 다른 포트를 선택하세요.") from None
+                except OSError: raise failure(409, "errPort", "This port is already in use. Choose another port.") from None
             self.token = secrets.token_urlsafe(32)
             self.origin = config.publicOrigin
             self.base = f"http://127.0.0.1:{config.port}"
@@ -115,23 +133,26 @@ class Service:
                     if self.process.poll() is not None: break
                     try:
                         self.request("/api/sites")
-                        self.sync()
-                        settings_file = data / "settings.json"
-                        settings_file.write_text(config.model_dump_json())
-                        settings_file.chmod(0o600)
-                        self.watching = threading.Event()
-                        stopped = self.watching
-                        context = contextvars.copy_context()
-                        def watch():
-                            while not stopped.wait(10):
-                                with self.lock:
-                                    if stopped.is_set() or not self.status()["running"]: return
-                                    try: self.sync()
-                                    except Exception: pass
-                        threading.Thread(target=lambda: context.run(watch), daemon=True).start()
-                        return self.status()
-                    except (OSError, HTTPException): time.sleep(.1)
-                raise HTTPException(503, "상담 서버를 시작하지 못했습니다. Node.js 버전과 설치 상태를 확인하세요.")
+                    except (OSError, HTTPException):
+                        time.sleep(.1)
+                        continue
+                    # Configuration errors (missing LLM access, Hermes Live) surface as-is.
+                    self.sync()
+                    settings_file = data / "settings.json"
+                    settings_file.write_text(config.model_dump_json())
+                    settings_file.chmod(0o600)
+                    self.watching = threading.Event()
+                    stopped = self.watching
+                    context = contextvars.copy_context()
+                    def watch():
+                        while not stopped.wait(10):
+                            with self.lock:
+                                if stopped.is_set() or not self.status()["running"]: return
+                                try: self.sync()
+                                except Exception: pass
+                    threading.Thread(target=lambda: context.run(watch), daemon=True).start()
+                    return self.status()
+                raise failure(503, "errStart", "The consultation server did not start. Check the Node.js version and installation.")
             except Exception:
                 self.stop()
                 raise
@@ -141,11 +162,13 @@ class Service:
             existing = self.connectors.get(site["id"])
             if existing and existing[1].is_alive(): continue
             if not site["published"]: continue
-            runtime = HermesRuntime(profile_home=self.home)
+            runtime = HermesRuntime(host_llm(ROOT))
+            if not runtime.available():
+                raise failure(503, "errLlm", "Hermes plugin LLM access is unavailable. Enable the plugin and restart Hermes.")
             try:
                 broker = load_voice(self.home) if self.subscription else None
-            except RuntimeError as error:
-                raise HTTPException(409, str(error)) from None
+            except LiveUnavailable as error:
+                raise failure(409, error.code, str(error)) from None
             connector = Connector(self.base, runtime, self.subscription, broker)
             try:
                 code = self.request(f'/api/sites/{site["id"]}/pair', "POST", {})["code"]
@@ -203,10 +226,10 @@ def stop(): return service().stop()
 @router.post('/control')
 def control(command: Control):
     if not re.fullmatch(r'/api/sites(?:/site_[A-Za-z0-9_-]+(?:/(?:publish|activity))?)?', command.path) or command.method not in ("GET", "POST", "PUT"):
-        raise HTTPException(400, "허용되지 않은 관리 요청입니다.")
+        raise failure(400, "errInput", "This management request is not allowed.")
     item = service()
     with item.lock:
-        if not item.status()["running"]: raise HTTPException(409, "상담 서버를 먼저 시작하세요.")
+        if not item.status()["running"]: raise failure(409, "errNotRunning", "Start the consultation server first.")
         result = item.request(command.path, command.method, command.body)
         if command.path.endswith('/publish'): item.sync()
         return result

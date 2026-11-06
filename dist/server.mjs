@@ -43788,10 +43788,16 @@ var leadSchema = external_exports.object({
   message: external_exports.string().max(2e3),
   consent: external_exports.literal(true)
 });
+var languageTag = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/;
+function answerLanguage(setting, pageLanguage) {
+  if (setting !== "auto") return setting;
+  return typeof pageLanguage === "string" && languageTag.test(pageLanguage) ? pageLanguage : "";
+}
 var configSchema = external_exports.object({
   name: external_exports.string().trim().min(1).max(80),
   origins: external_exports.array(originSchema).min(1).max(10),
   engine: external_exports.enum(["api", "subscription"]),
+  language: external_exports.string().max(35).refine((v) => v === "auto" || languageTag.test(v)).default("auto"),
   greeting: external_exports.string().max(500),
   rules: external_exports.string().max(6e3),
   knowledge: external_exports.string().max(4e4),
@@ -44343,7 +44349,11 @@ function createApp(options) {
       id,
       site: row.id,
       token: hash2(token),
-      config: config2,
+      // The connector sees the resolved language ("" → follow the visitor).
+      config: {
+        ...config2,
+        language: answerLanguage(config2.language, req.body?.pageLanguage)
+      },
       revision: row.revision,
       started: now,
       seen: now,
