@@ -5,6 +5,9 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { Store, secret, hash, password, verify } from "./store.ts";
+import { messages, t } from "../web/i18n.js";
+
+type MessageKey = keyof typeof messages.en;
 
 const originSchema = z
   .string()
@@ -23,7 +26,7 @@ const originSchema = z
     } catch {
       return false;
     }
-  }, "HTTPS 홈페이지 주소를 경로 없이 입력하세요.");
+  }, "errOrigin");
 const leadSchema = z.object({
   name: z.string().trim().min(1).max(100),
   contact: z.string().trim().min(3).max(200),
@@ -101,8 +104,8 @@ class HttpError extends Error {
     this.status = status;
   }
 }
-function fail(status: number, message: string): never {
-  throw new HttpError(status, message);
+function fail(status: number, code: MessageKey): never {
+  throw new HttpError(status, code);
 }
 const bearer = (req: Request) =>
   req.headers.authorization?.startsWith("Bearer ")
@@ -153,7 +156,7 @@ export function createApp(options: {
       limits.set(key, entry);
     }
     if (++entry.count > max)
-      fail(429, "요청이 많습니다. 잠시 후 다시 시도하세요.");
+      fail(429, "errTooMany");
   }
   function desktop(req: Request) {
     return (
@@ -169,15 +172,15 @@ export function createApp(options: {
     );
     app.use("/api", (req, _res, next) => {
       if (!desktop(req))
-        fail(403, "Desktop 설정 패널에서만 접근할 수 있습니다.");
+        fail(403, "errDesktopOnly");
       if (["/register", "/login", "/logout"].includes(req.path))
-        fail(403, "Desktop 인증을 사용합니다.");
+        fail(403, "errDesktopAuth");
       next();
     });
   }
   function sameOrigin(req: Request) {
     if (desktop(req)) return;
-    if (req.headers.origin !== origin) fail(403, "허용되지 않은 요청입니다.");
+    if (req.headers.origin !== origin) fail(403, "errForbidden");
   }
   function owner(req: Request) {
     if (desktop(req)) return "desktop";
@@ -193,7 +196,7 @@ export function createApp(options: {
         hash(token),
         Date.now(),
       );
-    if (!login) fail(401, "로그인이 필요합니다.");
+    if (!login) fail(401, "errLoginRequired");
     return login.owner as string;
   }
   function siteFor(req: Request) {
@@ -203,20 +206,20 @@ export function createApp(options: {
         req.params.id,
         user,
       );
-    if (!site) fail(404, "사이트를 찾을 수 없습니다.");
+    if (!site) fail(404, "errSiteNotFound");
     return site;
   }
   function linkFor(req: Request) {
     const token = hash(bearer(req));
     const link = [...links.values()].find((l) => l.token === token);
-    if (!link) fail(401, "연결 인증이 만료되었습니다. 다시 연결하세요.");
+    if (!link) fail(401, "errLinkExpired");
     link.seen = Date.now();
     return link;
   }
   function sessionFor(req: Request) {
     const s = sessions.get(hash(bearer(req)));
     if (!s || s.expires < Date.now())
-      fail(401, "상담이 종료되었습니다. 다시 시작하세요.");
+      fail(401, "errSessionEnded");
     s.seen = Date.now();
     return s;
   }
@@ -232,6 +235,7 @@ export function createApp(options: {
       name: c.name,
       greeting: c.greeting,
       engine: c.engine,
+      language: c.language ?? "auto",
       maxSeconds: c.maxSeconds,
       turnstileSiteKey: c.turnstileSiteKey || "",
       online: online(row.id),
@@ -251,7 +255,7 @@ export function createApp(options: {
       return Promise.reject(
         new HttpError(
           503,
-          "상담 서버가 연결되지 않았습니다. 제공자에게 문의하세요.",
+          "errConnectorOffline",
         ),
       );
     const id = randomUUID();
@@ -259,7 +263,7 @@ export function createApp(options: {
       const timer = setTimeout(() => {
         pending.delete(id);
         link.queue = link.queue.filter((j) => j.id !== id);
-        reject(new HttpError(504, "상담 서버 응답 시간이 초과되었습니다."));
+        reject(new HttpError(504, "errConnectorTimeout"));
       }, timeout);
       timer.unref();
       pending.set(id, {
@@ -288,7 +292,7 @@ export function createApp(options: {
     for (const [id, p] of pending) {
       if (p.session === s.id) {
         clearTimeout(p.timer);
-        p.reject(new HttpError(410, "상담이 종료되었습니다."));
+        p.reject(new HttpError(410, "errEnded"));
         pending.delete(id);
       }
     }
@@ -341,7 +345,7 @@ export function createApp(options: {
         password(b.password),
       );
     } catch {
-      fail(409, "이미 등록된 이메일입니다.");
+      fail(409, "errEmailTaken");
     }
     login(res, id);
     res.status(201).json({ email: b.email });
@@ -357,7 +361,7 @@ export function createApp(options: {
       b.email.toLowerCase(),
     );
     if (!p || !verify(b.password, p.password))
-      fail(401, "이메일 또는 비밀번호를 확인하세요.");
+      fail(401, "errBadCredentials");
     login(res, p.id);
     res.json({ email: p.email });
   });
@@ -405,7 +409,7 @@ export function createApp(options: {
     if (
       store.get("SELECT count(*) AS n FROM sites WHERE owner=?", user).n >= 20
     )
-      fail(409, "MVP는 계정당 20개 사이트까지 지원합니다.");
+      fail(409, "errSiteLimit");
     const id = `site_${secret().slice(0, 16)}`;
     store.run(
       "INSERT INTO sites(id,owner,draft) VALUES (?,?,?)",
@@ -475,7 +479,7 @@ export function createApp(options: {
     const key = hash(code),
       p = pairs.get(key);
     if (!p || p.expires < Date.now())
-      fail(401, "연결 코드가 만료되었거나 이미 사용되었습니다.");
+      fail(401, "errPairExpired");
     pairs.delete(key);
     for (const s of sessions.values())
       if (s.site === p.site) finish(s, "reconnected");
@@ -500,7 +504,7 @@ export function createApp(options: {
   });
   app.get("/connector/jobs", async (req, res) => {
     const link = linkFor(req);
-    if (link.waiter) fail(409, "이미 작업을 기다리고 있습니다.");
+    if (link.waiter) fail(409, "errAlreadyWaiting");
     if (!link.queue.length)
       await new Promise<void>((resolve) => {
         const timer = setTimeout(done, 20000);
@@ -539,27 +543,27 @@ export function createApp(options: {
       res.json({ ignored: true });
       return;
     }
-    if (p.site !== l.site) fail(403, "다른 연결의 작업입니다.");
+    if (p.site !== l.site) fail(403, "errWrongLink");
     clearTimeout(p.timer);
     pending.delete(b.id);
     if (!b.ok) {
-      const known: Record<string, [number, string]> = {
+      const known: Record<string, [number, MessageKey]> = {
         voice_quota: [
           429,
-          "선택한 음성 서비스의 잔액 또는 사용 한도가 부족합니다. 제공자에게 문의하세요.",
+          "errVoiceQuota",
         ],
         voice_auth: [
           503,
-          "선택한 음성 서비스의 인증 또는 접근 권한을 확인해야 합니다.",
+          "errVoiceAuth",
         ],
         voice_unavailable: [
           503,
-          "음성 서비스에 연결하지 못했습니다. 잠시 후 다시 시도하세요.",
+          "errVoiceUnavailable",
         ],
       };
       const [status, message] = known[b.errorCode ?? ""] ?? [
         502,
-        "연결된 상담 서버가 요청을 처리하지 못했습니다. 관리자에서 연결 상태를 확인하세요.",
+        "errConnectorFailed",
       ];
       p.reject(new HttpError(status, message));
     } else {
@@ -577,7 +581,7 @@ export function createApp(options: {
         p.resolve(data);
       } catch {
         p.reject(
-          new HttpError(502, "상담 서버 응답 형식이 올바르지 않습니다."),
+          new HttpError(502, "errBadResponse"),
         );
       }
     }
@@ -602,7 +606,7 @@ export function createApp(options: {
       "SELECT * FROM sites WHERE id=? AND published IS NOT NULL",
       req.params.id,
     );
-    if (!row) fail(404, "게시된 상담원이 없습니다.");
+    if (!row) fail(404, "errNotPublished");
     res.json(publicSite(row));
   });
   app.post("/public/sites/:id/leads", (req, res) => {
@@ -610,9 +614,9 @@ export function createApp(options: {
       "SELECT published FROM sites WHERE id=? AND published IS NOT NULL",
       req.params.id,
     );
-    if (!row) fail(404, "게시된 상담원이 없습니다.");
+    if (!row) fail(404, "errNotPublished");
     if (!JSON.parse(row.published).origins.includes(req.headers.origin ?? ""))
-      fail(403, "등록되지 않은 홈페이지입니다.");
+      fail(403, "errOriginNotAllowed");
     rate(`lead:${req.ip}:${req.params.id}`, 3, 600000);
     const b = leadSchema.parse(req.body),
       id = randomUUID();
@@ -633,12 +637,12 @@ export function createApp(options: {
       "SELECT * FROM sites WHERE id=? AND published IS NOT NULL",
       req.params.id,
     );
-    if (!row) fail(404, "게시된 상담원이 없습니다.");
+    if (!row) fail(404, "errNotPublished");
     const config = configSchema.parse(JSON.parse(row.published));
     if (!config.enabled)
-      fail(503, "상담이 일시 중지되었습니다. 문의를 남겨 주세요.");
+      fail(503, "errPaused");
     if (!config.origins.includes(req.headers.origin ?? ""))
-      fail(403, "등록되지 않은 홈페이지입니다.");
+      fail(403, "errOriginNotAllowed");
     rate(`start:${req.ip}:${row.id}`, 12, 60000);
     if (config.turnstileSiteKey) {
       if (
@@ -649,20 +653,20 @@ export function createApp(options: {
           row.id,
         ))
       )
-        fail(403, "봇 검증을 완료한 뒤 다시 시도하세요.");
+        fail(403, "errChallenge");
       if (
         store.get("SELECT revision FROM sites WHERE id=?", row.id)?.revision !==
         row.revision
       )
-        fail(409, "상담 설정이 변경되었습니다. 다시 시작하세요.");
+        fail(409, "errConfigChanged");
     }
     if (!online(row.id))
-      fail(503, "상담 서버가 오프라인입니다. 잠시 후 다시 방문해 주세요.");
+      fail(503, "errServerOffline");
     if (
       [...sessions.values()].filter((s) => s.site === row.id).length >=
       config.maxConcurrent
     )
-      fail(429, "다른 상담이 진행 중입니다. 잠시 후 다시 시도하세요.");
+      fail(429, "errBusy");
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const usage = store.get(
@@ -671,7 +675,7 @@ export function createApp(options: {
       today.getTime(),
     ).total;
     if (usage + config.maxSeconds > config.dailySeconds)
-      fail(429, "오늘의 상담 이용 한도에 도달했습니다.");
+      fail(429, "errDailySite");
     const visitor =
       z.string().max(100).optional().parse(req.body?.visitorId) ?? "anonymous";
     // Both keys are enforced: clearing browser storage cannot bypass the network limit.
@@ -688,14 +692,14 @@ export function createApp(options: {
         today.getTime(),
       );
       if (counter.n >= config.dailyStarts)
-        fail(429, "오늘의 방문자 상담 횟수에 도달했습니다.");
+        fail(429, "errDailyVisitor");
       const last = store.get(
         "SELECT max(started) AS last FROM starts WHERE site=? AND identity=?",
         row.id,
         key,
       ).last;
       if (last && now - last < config.cooldownSeconds * 1000)
-        fail(429, "반복 연결을 방지하기 위해 잠시 기다려 주세요.");
+        fail(429, "errCooldown");
     }
     for (const key of keys)
       store.run("INSERT INTO starts VALUES (?,?,?)", row.id, key, now);
@@ -733,6 +737,7 @@ export function createApp(options: {
     );
     res.status(201).json({
       ...publicSite(row),
+      language: sessions.get(hash(token))!.config.language,
       token,
       sessionId: id,
       expiresAt: now + config.maxSeconds * 1000,
@@ -748,14 +753,14 @@ export function createApp(options: {
   });
   app.post("/public/session/start", async (req, res) => {
     const s = sessionFor(req);
-    if (s.voice || s.starting) fail(409, "이미 음성 연결을 시작했습니다.");
+    if (s.voice || s.starting) fail(409, "errVoiceStarted");
     const { offer } = z
       .object({ offer: z.string().min(10).max(65536) })
       .parse(req.body);
     if (!links.get(s.site)?.capabilities[s.config.engine])
       fail(
         503,
-        "선택한 음성 연결이 준비되지 않았습니다. 관리자 설정을 확인하세요.",
+        "errVoiceNotReady",
       );
     s.starting = true;
     try {
@@ -766,7 +771,7 @@ export function createApp(options: {
       });
       if (!sessions.has(s.token)) {
         fireStop(s);
-        fail(410, "상담이 종료되었습니다.");
+        fail(410, "errEnded");
       }
       s.voice = true;
       res.json(result);
@@ -787,12 +792,12 @@ export function createApp(options: {
       .parse(req.body);
     const old = s.replies.get(b.requestId);
     if (old) {
-      if (old.text !== b.text) fail(409, "같은 요청 ID에 다른 내용입니다.");
+      if (old.text !== b.text) fail(409, "errRequestConflict");
       res.json({ text: old.reply });
       return;
     }
-    if (s.busy) fail(409, "이전 질문을 처리하고 있습니다.");
-    if (++s.requests > 30) fail(429, "이 상담의 질문 한도에 도달했습니다.");
+    if (s.busy) fail(409, "errQuestionBusy");
+    if (++s.requests > 30) fail(429, "errQuestionLimit");
     s.busy = true;
     try {
       const result = await enqueue(s.site, "ask", s.id, {
@@ -801,7 +806,7 @@ export function createApp(options: {
         config: s.config,
         expiresAt: s.expires,
       });
-      if (!sessions.has(s.token)) fail(410, "상담이 종료되었습니다.");
+      if (!sessions.has(s.token)) fail(410, "errEnded");
       s.history.push(
         { role: "user", text: b.text },
         { role: "assistant", text: result.text },
@@ -837,7 +842,7 @@ export function createApp(options: {
       "SELECT published FROM sites WHERE id=?",
       req.params.id,
     );
-    if (!row?.published) fail(404, "게시된 상담원이 없습니다.");
+    if (!row?.published) fail(404, "errNotPublished");
     const c = JSON.parse(row.published);
     res.set(
       "Content-Security-Policy",
@@ -851,7 +856,7 @@ export function createApp(options: {
       options.desktopToken &&
       ["/", "/index.html", "/admin.js"].includes(req.path)
     )
-      fail(404, "Desktop 설정 패널을 사용하세요.");
+      fail(404, "errUseDesktop");
     next();
   });
   app.use(
@@ -871,14 +876,16 @@ export function createApp(options: {
         : error instanceof z.ZodError || error instanceof SyntaxError
           ? 400
           : 500;
-    res.status(status).json({
-      error:
-        status === 500
-          ? "요청을 처리하지 못했습니다."
-          : error instanceof z.ZodError
-            ? "입력값을 확인하세요."
-            : error.message,
-    });
+    const code =
+      status === 500
+        ? "errGeneric"
+        : error instanceof z.ZodError || error instanceof SyntaxError
+          ? "errInput"
+          : error.message in messages.en
+            ? error.message
+            : "errGeneric";
+    // English text for API clients; browsers translate by code.
+    res.status(status).json({ error: t("en", code), code });
   });
   const timer = setInterval(() => {
     const now = Date.now();
@@ -900,7 +907,7 @@ export function createApp(options: {
       for (const l of links.values()) l.waiter?.();
       for (const p of pending.values()) {
         clearTimeout(p.timer);
-        p.reject(new HttpError(503, "서비스를 종료합니다."));
+        p.reject(new HttpError(503, "errShuttingDown"));
       }
       pending.clear();
       store.close();

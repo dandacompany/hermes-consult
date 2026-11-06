@@ -7,7 +7,9 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": false
   },
   "include": [
     "src/**/*.ts",

@@ -4,9 +4,15 @@ import {
   answerEvent,
   delegationAnswer,
 } from "./voice-protocol.js";
+import { applyI18n, pickLocale, relayError, t } from "./i18n.js";
 const $ = (s) => document.querySelector(s),
+  query = new URLSearchParams(location.search),
   site = location.pathname.split("/").pop(),
-  parentOrigin = new URLSearchParams(location.search).get("parent");
+  parentOrigin = query.get("parent");
+// Visitor UI language: the site's answer language when fixed, else the embedding page's.
+let locale = pickLocale(query.get("lang") || navigator.language);
+const T = (key, ...values) => t(locale, key, ...values);
+applyI18n(locale);
 let config,
   session = null,
   requesting = null,
@@ -35,7 +41,7 @@ function add(role, text) {
   const box = document.createElement("div");
   box.className = "message " + role;
   const label = document.createElement("small");
-  label.textContent = role === "user" ? "나" : "AI 상담원";
+  label.textContent = role === "user" ? T("you") : T("assistant");
   const body = document.createElement("span");
   body.textContent = text;
   box.append(label, body);
@@ -47,7 +53,7 @@ function sendParent(data) {
   parent.postMessage(data, parentOrigin);
 }
 async function rpc(path, body = {}) {
-  if (!session) throw Error("상담을 다시 시작하세요.");
+  if (!session) throw Error(T("restart"));
   const r = await fetch("/public/session/" + path, {
     method: "POST",
     headers: {
@@ -57,14 +63,14 @@ async function rpc(path, body = {}) {
     body: JSON.stringify(body),
   });
   const result = await r.json();
-  if (!r.ok) throw Error(result.error);
+  if (!r.ok) throw relayError(locale, result);
   return result;
 }
 function parentRequest(type, body = {}) {
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => done(Error("홈페이지 연결 시간이 초과되었습니다.")),
+      () => done(Error(T("parentTimeout"))),
       12000,
     );
     function done(err, data) {
@@ -79,7 +85,8 @@ function parentRequest(type, body = {}) {
         e.data?.requestId !== requestId
       )
         return;
-      if (e.data.type === "hc:error") done(Error(e.data.message));
+      if (e.data.type === "hc:error")
+        done(relayError(locale, { code: e.data.code, error: e.data.message }));
       else if (e.data.type === "hc:response") done(null, e.data.result);
     }
     window.addEventListener("message", receive);
@@ -91,7 +98,7 @@ async function ensure() {
   if (requesting) return requesting;
   const turn = generation;
   const promise = challenge().then(challengeToken => {
-    if (turn !== generation) throw Error("상담이 취소되었습니다.");
+    if (turn !== generation) throw Error(T("cancelled"));
     return parentRequest("hc:request-session", {challengeToken});
   })
     .then((s) => {
@@ -101,10 +108,10 @@ async function ensure() {
           headers: { Authorization: "Bearer " + s.token },
           keepalive: true,
         }).catch(() => {});
-        throw Error("상담이 취소되었습니다.");
+        throw Error(T("cancelled"));
       }
       session = s;
-      status(s.demo ? "데모 상담 · 실제 AI 호출 없음" : "상담 연결됨");
+      status(s.demo ? T("demoConnected") : T("connected"));
       heartbeat = setInterval(
         () =>
           rpc("heartbeat").catch((e) => {
@@ -125,7 +132,7 @@ async function ensure() {
           `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
         if (!left) {
           end();
-          error("상담 시간이 종료되었습니다.");
+          error(T("timeUp"));
         }
       }, 1000);
       return s;
@@ -193,10 +200,10 @@ function end() {
   $("#welcome").hidden = false;
   $("#clock").textContent = "";
   $("#start").disabled = !config?.voiceReady;
-  $("#start").textContent = "음성 상담 시작";
-  $("#mute").textContent = "마이크 끄기";
+  $("#start").textContent = T("startVoice");
+  $("#mute").textContent = T("muteOff");
   muted = false;
-  status("상담 종료");
+  status(T("ended"));
 }
 window.addEventListener("message", (e) => {
   if (
@@ -215,14 +222,14 @@ $("#end").onclick = end;
 $("#mute").onclick = () => {
   muted = !muted;
   stream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
-  $("#mute").textContent = muted ? "마이크 켜기" : "마이크 끄기";
+  $("#mute").textContent = muted ? T("muteOn") : T("muteOff");
 };
 async function onEvent(event) {
   if (!session) return;
   const type = event.type;
   if (type === "session.closed" || type === "error") {
     end();
-    error("음성 연결이 종료되었습니다. 다시 시작하거나 문의를 남겨주세요.");
+    error(T("voiceClosed"));
     return;
   }
   if (type === "session.started" && !greeted) {
@@ -260,7 +267,7 @@ async function onEvent(event) {
     if (!text) return;
     const turn = generation;
     try {
-      status("상담 자료 확인 중");
+      status(T("checkingDocs"));
       const result = await rpc("ask", {
         text: text.slice(0, 4000),
         requestId: id,
@@ -274,7 +281,7 @@ async function onEvent(event) {
             content: [{ type: "input_text", text: delegationAnswer(result.text) }],
           }),
         );
-      status("음성 상담 중");
+      status(T("inVoice"));
     } catch (e) {
       if (turn !== generation) return;
       error(e.message);
@@ -286,7 +293,8 @@ async function onEvent(event) {
             content: [
               {
                 type: "input_text",
-                text: "조회에 실패했습니다. 문의 남기기를 안내하세요.",
+                // Model-facing: English; the voice model answers in the visitor's language.
+                text: "The document lookup failed. Suggest that the visitor leave an inquiry.",
               },
             ],
           }),
@@ -317,13 +325,11 @@ $("#start").onclick = async () => {
   error("");
   try {
     if (!config?.voiceReady)
-      throw Error(
-        "음성 연결이 준비되지 않았습니다. 글로 질문하거나 문의를 남겨주세요.",
-      );
-    status("마이크와 음성 연결 준비 중");
+      throw Error(T("voiceUnavailableText"));
+    status(T("preparing"));
     $("#controls").hidden = false;
     $("#mute").hidden = true;
-    $("#start").textContent = "연결 중…";
+    $("#start").textContent = T("connecting");
     const acquired = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -338,7 +344,7 @@ $("#start").onclick = async () => {
     stream = acquired;
     const s = await ensure();
     if (turn !== generation) return;
-    if (!s.voiceReady) throw Error("음성 연결이 준비되지 않았습니다.");
+    if (!s.voiceReady) throw Error(T("voiceNotReady"));
     document.documentElement.dataset.microphone = "active";
     pc = new RTCPeerConnection({ bundlePolicy: "max-bundle" });
     const connection = pc;
@@ -364,21 +370,19 @@ $("#start").onclick = async () => {
       audio.srcObject = e.streams[0] ?? new MediaStream([e.track]);
       audio
         .play()
-        .catch(() =>
-          error("소리가 재생되지 않으면 상담을 다시 시작해 주세요."),
-        );
+        .catch(() => error(T("audioBlocked")));
     };
     channel = pc.createDataChannel("oai-events");
     channel.onmessage = (e) => {
       try {
         void onEvent(JSON.parse(e.data)).catch(() =>
-          error("음성 이벤트를 처리하지 못했습니다."),
+          error(T("voiceEventFailed")),
         );
       } catch {}
     };
     const ready = new Promise((resolve, reject) => {
       const timer = setTimeout(
-        () => reject(Error("음성 연결 시간이 초과되었습니다.")),
+        () => reject(Error(T("voiceTimeout"))),
         60000,
       );
       channel.onopen = () => {
@@ -388,10 +392,10 @@ $("#start").onclick = async () => {
       connection.onconnectionstatechange = () => {
         if (connection.connectionState === "failed") {
           clearTimeout(timer);
-          reject(Error("음성 연결에 실패했습니다."));
+          reject(Error(T("voiceFailed")));
           if (voice) {
             end();
-            error("네트워크 연결이 끊겼습니다.");
+            error(T("networkLost"));
           }
         }
       };
@@ -414,13 +418,13 @@ $("#start").onclick = async () => {
     $("#welcome").hidden = true;
     $("#controls").hidden = false;
     $("#mute").hidden = false;
-    status("음성 상담 중");
+    status(T("inVoice"));
   } catch (e) {
     if (turn === generation) {
       end();
       error(
         e.name === "NotAllowedError"
-          ? "마이크 사용을 허용해 주세요. 글로 상담할 수도 있습니다."
+          ? T("micDenied")
           : e.message,
       );
     }
@@ -445,7 +449,7 @@ $("#text-form").onsubmit = async (e) => {
     $("#mute").hidden = !voice;
     add("user", text);
     $("#text").value = "";
-    status("답변 준비 중");
+    status(T("answering"));
     const r = await rpc("ask", { text, requestId: crypto.randomUUID() });
     if (turn !== generation) return;
     if (!voice) add("assistant", r.text);
@@ -453,10 +457,10 @@ $("#text-form").onsubmit = async (e) => {
       channel.send(JSON.stringify(answerEvent(session.engine, text, r.text)));
     status(
       voice
-        ? "음성 상담 중"
+        ? T("inVoice")
         : session?.demo
-          ? "데모 상담 · 실제 AI 호출 없음"
-          : "상담 연결됨",
+          ? T("demoConnected")
+          : T("connected"),
     );
   } catch (e) {
     error(e.message);
@@ -482,10 +486,7 @@ $("#lead-form").onsubmit = async (e) => {
       },
     });
     f.hidden = true;
-    add(
-      "assistant",
-      "담당자에게 문의가 접수되었습니다. 남겨주신 연락처로 안내드리겠습니다.",
-    );
+    add("assistant", T("leadDone"));
   } catch (e) {
     error(e.message);
   } finally {
@@ -495,19 +496,19 @@ $("#lead-form").onsubmit = async (e) => {
 fetch("/public/sites/" + site)
   .then((r) => r.json())
   .then((c) => {
-    if (c.error) throw Error(c.error);
+    if (c.error) throw relayError(locale, c);
     config = c;
+    if (c.language && c.language !== "auto") {
+      locale = pickLocale(c.language);
+      applyI18n(locale);
+    }
     $("#name").textContent = c.name;
     $("#greeting").textContent = c.greeting;
     $("#start").disabled = !c.voiceReady;
     status(
-      c.online
-        ? c.demo
-          ? "데모 연결됨"
-          : "상담 가능"
-        : "현재 상담 서버 오프라인",
+      c.online ? (c.demo ? T("demoReady") : T("available")) : T("offline"),
     );
-    if (!c.voiceReady) $("#start").textContent = "음성 연결 준비 중";
+    if (!c.voiceReady) $("#start").textContent = T("voicePreparing");
   })
   .catch((e) => error(e.message));
 
@@ -520,9 +521,9 @@ async function challenge() {
       const script = document.createElement('script');
       script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
       script.async = true;
-      const timer = setTimeout(() => reject(Error('봇 검증을 불러오지 못했습니다.')), 10000);
+      const timer = setTimeout(() => reject(Error(T('challengeLoadFailed'))), 10000);
       script.onload = () => {clearTimeout(timer); resolve();};
-      script.onerror = () => {clearTimeout(timer); reject(Error('봇 검증을 불러오지 못했습니다.'));};
+      script.onerror = () => {clearTimeout(timer); reject(Error(T('challengeLoadFailed')));};
       document.head.append(script);
     }).catch(error => {turnstileLoading = null; throw error;});
     await turnstileLoading;
@@ -530,17 +531,17 @@ async function challenge() {
   return new Promise((resolve, reject) => {
     const box = document.createElement('div');
     box.style.cssText = 'position:fixed;inset:0;background:white;z-index:10;display:grid;place-content:center;gap:16px';
-    const label = document.createElement('p'); label.textContent = '상담 연결을 위해 봇 검증을 완료해 주세요.';
+    const label = document.createElement('p'); label.textContent = T('challengePrompt');
     const mount = document.createElement('div');
-    const cancel = document.createElement('button');cancel.textContent = '취소';
+    const cancel = document.createElement('button');cancel.textContent = T('cancel');
     box.append(label,mount,cancel);document.body.append(box);
     let id;
-    const timer = setTimeout(() => finish(Error('봇 검증 시간이 초과되었습니다.')), 60000);
+    const timer = setTimeout(() => finish(Error(T('challengeTimeout'))), 60000);
     let finished = false;
     function finish(error, token) {if(finished)return;finished=true;cancelChallenge=null;clearTimeout(timer);if(id!==undefined)window.turnstile.remove(id);box.remove();error?reject(error):resolve(token);}
-    cancelChallenge=()=>finish(Error('상담이 취소되었습니다.'));
+    cancelChallenge=()=>finish(Error(T('cancelled')));
     cancel.onclick=cancelChallenge;
-    try {id=window.turnstile.render(mount, {sitekey:config.turnstileSiteKey,action:'consult',cData:site,callback:token=>finish(null,token),'error-callback':()=>finish(Error('봇 검증에 실패했습니다.')),'expired-callback':()=>finish(Error('봇 검증이 만료되었습니다.'))});}
-    catch {finish(Error('봇 검증을 시작하지 못했습니다.'));}
+    try {id=window.turnstile.render(mount, {sitekey:config.turnstileSiteKey,action:'consult',cData:site,callback:token=>finish(null,token),'error-callback':()=>finish(Error(T('challengeFailed'))),'expired-callback':()=>finish(Error(T('challengeExpired')))});}
+    catch {finish(Error(T('challengeStartFailed')));}
   });
 }

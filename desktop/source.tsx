@@ -145,7 +145,7 @@ function Choice({
 export default {
   id: "hermes-consult",
   name: "hermes-consult",
-  version: "0.2.2",
+  version: "0.2.3",
   description: "Website voice consultations",
   defaultEnabled: false,
   register(ctx: PluginContext) {

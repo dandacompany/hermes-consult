@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>상담 위젯 설치 미리보기</title>
+    <title data-i18n="demoTitle">Widget installation preview</title>
     <link rel="stylesheet" href="/style.css" />
     <style>
       body {
@@ -61,35 +61,39 @@
     </style>
   </head>
   <body>
-    <div class="demo-note">
-      설치 미리보기입니다. 오른쪽 아래의 위젯은 실제 게시 설정과 연결 상태를
-      사용합니다.
+    <div class="demo-note" data-i18n="demoBanner">
+      This is an installation preview. The widget at the bottom right uses the
+      real published settings and connection status.
     </div>
     <header class="demo-head">
-      <span class="brand">당신의 홈페이지</span
-      ><a href="/">상담 관리로 돌아가기</a>
+      <span class="brand" data-i18n="demoBrand">Your website</span
+      ><a href="/" data-i18n="demoBack">Back to consultation admin</a>
     </header>
     <section class="demo-body">
-      <h1>질문이 떠오르는 순간,<br />대화를 시작하세요.</h1>
-      <p>
-        방문자가 홈페이지를 떠나지 않고 서비스에 대해 물어볼 수 있습니다. 상담
-        버튼을 눌러 직접 확인해 보세요.
+      <h1 data-i18n-html="demoHeroHtml">
+        When a question comes up,<br />start a conversation.
+      </h1>
+      <p data-i18n="demoLead">
+        Visitors can ask about your services without leaving your website. Press
+        the consultation button to try it.
       </p>
       <div class="demo-grid">
         <article>
-          <h3>서비스 소개</h3>
-          <p>고객이 궁금해하는 정보를 안내합니다.</p>
+          <h3 data-i18n="demoCard1">About our services</h3>
+          <p data-i18n="demoCard1Body">Guide customers to the information they need.</p>
         </article>
         <article>
-          <h3>자주 묻는 질문</h3>
-          <p>등록한 자료를 바탕으로 대화합니다.</p>
+          <h3 data-i18n="demoCard2">Frequently asked questions</h3>
+          <p data-i18n="demoCard2Body">Conversations are based on your documents.</p>
         </article>
         <article>
-          <h3>상담 문의</h3>
-          <p>담당자에게 연락처와 문의를 남깁니다.</p>
+          <h3 data-i18n="demoCard3">Contact</h3>
+          <p data-i18n="demoCard3Body">
+            Visitors leave their contact details and a message for staff.
+          </p>
         </article>
       </div>
     </section>
-    <script src="/demo.js"></script>
+    <script type="module" src="/demo.js"></script>
   </body>
 </html>

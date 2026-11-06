@@ -6,7 +6,7 @@
 
 Hermes Consult adds a settings panel and a self-hosted consultation server to Hermes. Configure business knowledge, answer rules, allowed websites and usage limits, then copy a script tag into your website. Visitors can speak to the assistant, type questions or leave an inquiry.
 
-The Desktop panel follows Hermes settings components and switches between English and Korean with the app language; backend errors reach it as locale keys with English text. Each assistant has an **Answer language** setting: the default, *Automatic*, answers in the embedding page's `<html lang>` (or the visitor's own language when it differs). The visitor widget's button and form labels are still Korean-first.
+The Desktop panel follows Hermes settings components and switches between English and Korean with the app language; backend errors reach it as locale keys with English text. Each assistant has an **Answer language** setting: the default, *Automatic*, answers in the embedding page's `<html lang>` (or the visitor's own language when it differs). The visitor widget, consultation window, demo page and standalone web admin are available in English and Korean. The widget follows the assistant's fixed answer language, otherwise the page's `<html lang>` (Korean for `ko*`, English for everything else); the web admin follows the browser language and has a toggle. Relay errors carry a stable `code` with English `error` text, and the browser shows them in its own language.
 
 ## Screenshots
 

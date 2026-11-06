@@ -3,6 +3,12 @@
     site = script?.dataset.siteId;
   if (!site || !/^site_[\w-]+$/.test(site)) return;
   const service = new URL(script.src).origin;
+  // Classic script on third-party pages: a tiny inline catalog instead of importing i18n.js.
+  const pageLanguage = document.documentElement.lang || navigator.language || "";
+  const ko = /^ko(?:-|$)/i.test(pageLanguage);
+  const text = ko
+    ? { button: "AI 상담", open: "AI 상담 창 열기", frame: "AI 상담" }
+    : { button: "AI chat", open: "Open AI consultation", frame: "AI consultation" };
   if (document.querySelector(`[data-hermes-consult="${site}"]`)) return;
   const host = document.createElement("div");
   host.dataset.hermesConsult = site;
@@ -10,9 +16,9 @@
   const style = document.createElement("style");
   style.textContent = `:host{all:initial;position:fixed;right:24px;bottom:24px;z-index:2147483000;font-family:system-ui,sans-serif}button{border:0;border-radius:28px;background:#2458cd;color:white;padding:16px 23px;font:600 14px system-ui;box-shadow:0 8px 25px #15346630;cursor:pointer}button:focus-visible{outline:3px solid #8eaff7;outline-offset:3px}iframe{display:block;position:absolute;bottom:70px;right:0;width:380px;height:570px;max-height:calc(100dvh - 115px);max-width:calc(100vw - 32px);border:1px solid #dce3ed;border-radius:18px;box-shadow:0 20px 70px #18395430;background:white}iframe[hidden]{display:none}@media(max-width:450px){:host{right:16px;bottom:16px}iframe{width:calc(100vw - 32px)}}`;
   const button = document.createElement("button");
-  button.textContent = "AI 상담";
+  button.textContent = text.button;
   button.setAttribute("aria-expanded", "false");
-  button.setAttribute("aria-label", "AI 상담 창 열기");
+  button.setAttribute("aria-label", text.open);
   let frame,
     token = null,
     pending = false;
@@ -38,8 +44,10 @@
         "/frame/" +
         encodeURIComponent(site) +
         "?parent=" +
-        encodeURIComponent(location.origin);
-      frame.title = "AI 상담";
+        encodeURIComponent(location.origin) +
+        "&lang=" +
+        encodeURIComponent(pageLanguage);
+      frame.title = text.frame;
       frame.allow = "microphone";
       frame.setAttribute(
         "sandbox",
@@ -65,19 +73,21 @@
     )
       return;
     const data = event.data;
-    const reply = (result, message) =>
+    // Errors carry a catalog code; the frame shows them in its own language.
+    const reply = (result, message, code) =>
       frame.contentWindow.postMessage(
         {
-          type: message ? "hc:error" : "hc:response",
+          type: message || code ? "hc:error" : "hc:response",
           requestId: data.requestId,
           result,
           message,
+          code,
         },
         service,
       );
     if (data?.type === "hc:request-session") {
       if (pending) {
-        reply(null, "이전 연결을 정리하고 있습니다. 다시 시도해 주세요.");
+        reply(null, "", "previousCleanup");
         return;
       }
       pending = true;
@@ -87,27 +97,27 @@
         const r = await fetch(service + "/public/sites/" + site + "/sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ challengeToken: data.challengeToken, pageLanguage: document.documentElement.lang || navigator.language || "", visitorId: (() => {
+          body: JSON.stringify({ challengeToken: data.challengeToken, pageLanguage, visitorId: (() => {
             try { const key = "hc-visitor-" + site; let id = localStorage.getItem(key);
               if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); } return id;
             } catch { return "anonymous"; }
           })() }),
         });
         const result = await r.json();
-        if (!r.ok) throw Error(result.error);
+        if (!r.ok) throw Object.assign(Error(result.error), { code: result.code });
         if (frame.hidden || turn !== generation) {
           fetch(service + "/public/session/end", {
             method: "POST",
             headers: { Authorization: "Bearer " + result.token },
             keepalive: true,
           }).catch(() => {});
-          reply(null, "상담이 취소되었습니다.");
+          reply(null, "", "cancelled");
           return;
         }
         token = result.token;
         reply(result);
       } catch (e) {
-        reply(null, e.message);
+        reply(null, e.message || "error", e.code);
       } finally {
         pending = false;
       }
@@ -120,10 +130,10 @@
           body: JSON.stringify(data.lead),
         });
         const result = await r.json();
-        if (!r.ok) throw Error(result.error);
+        if (!r.ok) throw Object.assign(Error(result.error), { code: result.code });
         reply(result);
       } catch (e) {
-        reply(null, e.message);
+        reply(null, e.message || "error", e.code);
       }
     }
     if (data?.type === "hc:end") {
